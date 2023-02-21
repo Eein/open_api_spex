@@ -306,14 +306,14 @@ defmodule OpenApiSpex.Schema do
 
   ## Examples
 
-  iex> OpenApiSpex.Schema.validate(%OpenApiSpex.Schema{type: :integer, minimum: 5}, 3, %{})
-  {:error, "#: 3 is smaller than minimum 5"}
+      iex> OpenApiSpex.Schema.validate(%OpenApiSpex.Schema{type: :integer, minimum: 5}, 3, %{})
+      {:error, "#: 3 is smaller than minimum 5"}
 
-  iex> OpenApiSpex.Schema.validate(%OpenApiSpex.Schema{type: :string, pattern: "(.*)@(.*)"}, "joe@gmail.com", %{})
-  :ok
+      iex> OpenApiSpex.Schema.validate(%OpenApiSpex.Schema{type: :string, pattern: "(.*)@(.*)"}, "joe@gmail.com", %{})
+      :ok
 
-  iex> OpenApiSpex.Schema.validate(%OpenApiSpex.Schema{type: :string, pattern: "(.*)@(.*)"}, "joegmail.com", %{})
-  {:error, "#: Value \"joegmail.com\" does not match pattern: (.*)@(.*)"}
+      iex> OpenApiSpex.Schema.validate(%OpenApiSpex.Schema{type: :string, pattern: "(.*)@(.*)"}, "joegmail.com", %{})
+      {:error, "#: Value \"joegmail.com\" does not match pattern: (.*)@(.*)"}
   """
   @spec validate(Schema.t() | Reference.t(), any, %{String.t() => Schema.t() | Reference.t()}) ::
           :ok | {:error, String.t()}
@@ -327,8 +327,10 @@ defmodule OpenApiSpex.Schema do
   included in the `allOf` list.
   """
   def properties(schema = %Schema{type: :object, properties: properties = %{}}) do
-    for({name, property} <- properties, do: {name, default(property)}) ++
-      properties(%{schema | properties: nil})
+    properties
+    |> Enum.map(fn {name, property} -> {name, default(property)} end)
+    |> Enum.concat(properties(%{schema | properties: nil}))
+    |> Enum.uniq_by(fn {name, _property} -> name end)
   end
 
   def properties(%Schema{allOf: schemas}) when is_list(schemas) do

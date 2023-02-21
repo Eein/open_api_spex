@@ -1,7 +1,7 @@
 defmodule OpenApiSpex.Cast.Object do
   @moduledoc false
   alias OpenApiSpex.Cast
-  alias OpenApiSpex.Cast.Error
+  alias OpenApiSpex.Cast.Utils
   alias OpenApiSpex.Reference
 
   def cast(%{value: value} = ctx) when not is_map(value) do
@@ -22,11 +22,17 @@ defmodule OpenApiSpex.Cast.Object do
          value = cast_atom_keys(value, resolved_schema_properties),
          ctx = %{ctx | value: value},
          {:ok, ctx} <- cast_additional_properties(ctx, original_value),
-         :ok <- check_required_fields(ctx, schema),
+         :ok <- Utils.check_required_fields(ctx),
          :ok <- check_max_properties(ctx),
          :ok <- check_min_properties(ctx),
          {:ok, value} <- cast_properties(%{ctx | schema: resolved_schema_properties}) do
-      value_with_defaults = apply_defaults(value, resolved_schema_properties)
+      value_with_defaults =
+        if Keyword.get(ctx.opts, :apply_defaults, true) do
+          apply_defaults(value, resolved_schema_properties)
+        else
+          value
+        end
+
       ctx = to_struct(%{ctx | value: value_with_defaults})
       {:ok, ctx}
     end
@@ -64,38 +70,9 @@ defmodule OpenApiSpex.Cast.Object do
     end
   end
 
-  defp check_required_fields(%{value: input_map} = ctx, schema) do
-    required = schema.required || []
-
-    # Adjust required fields list, based on read_write_scope
-    required =
-      Enum.filter(required, fn key ->
-        case {ctx.read_write_scope, schema.properties[key]} do
-          {:read, %{writeOnly: true}} -> false
-          {:write, %{readOnly: true}} -> false
-          _ -> true
-        end
-      end)
-
-    input_keys = Map.keys(input_map)
-    missing_keys = required -- input_keys
-
-    if missing_keys == [] do
-      :ok
-    else
-      errors =
-        Enum.map(missing_keys, fn key ->
-          ctx = %{ctx | path: [key | ctx.path]}
-          Error.new(ctx, {:missing_field, key})
-        end)
-
-      {:error, ctx.errors ++ errors}
-    end
-  end
-
   defp check_max_properties(%{schema: %{maxProperties: max_properties}} = ctx)
        when is_integer(max_properties) do
-    count = ctx.value |> Map.keys() |> length()
+    count = map_size(ctx.value)
 
     if count > max_properties do
       Cast.error(ctx, {:max_properties, max_properties, count})
@@ -108,7 +85,7 @@ defmodule OpenApiSpex.Cast.Object do
 
   defp check_min_properties(%{schema: %{minProperties: min_properties}} = ctx)
        when is_integer(min_properties) do
-    count = ctx.value |> Map.keys() |> length()
+    count = map_size(ctx.value)
 
     if count < min_properties do
       Cast.error(ctx, {:min_properties, min_properties, count})

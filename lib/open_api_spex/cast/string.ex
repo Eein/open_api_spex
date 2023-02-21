@@ -6,9 +6,12 @@ defmodule OpenApiSpex.Cast.String do
   schema struct.
 
   """
+
   alias OpenApiSpex.{Cast, Cast.Error}
 
   @schema_fields [:maxLength, :minLength, :pattern]
+
+  def cast(%{value: %Date{} = date, schema: %{format: :date}}), do: {:ok, date}
 
   def cast(%{value: value, schema: %{format: :date}} = ctx) when is_binary(value) do
     case Date.from_iso8601(value) do
@@ -20,6 +23,8 @@ defmodule OpenApiSpex.Cast.String do
     end
   end
 
+  def cast(%{value: %DateTime{} = date_time, schema: %{format: :"date-time"}}), do: {:ok, date_time}
+
   def cast(%{value: value, schema: %{format: :"date-time"}} = ctx) when is_binary(value) do
     case DateTime.from_iso8601(value) do
       {:ok, %DateTime{} = date_time, _offset} ->
@@ -27,6 +32,16 @@ defmodule OpenApiSpex.Cast.String do
 
       _ ->
         Cast.error(ctx, {:invalid_format, :"date-time"})
+    end
+  end
+
+  def cast(%{value: value, schema: %{format: :byte}} = ctx) when is_binary(value) do
+    case Base.decode64(value) do
+      {:ok, _} = result ->
+        result
+
+      _ ->
+        Cast.error(ctx, {:invalid_format, :base64})
     end
   end
 
@@ -104,6 +119,13 @@ defmodule OpenApiSpex.Cast.String do
 
   def cast(%{value: value = %Plug.Upload{}, schema: %{format: :binary}}) do
     {:ok, value}
+  end
+
+  def cast(%{value: value} = ctx) when is_atom(value) and value not in [true, false, nil] do
+    case cast(%{ctx | value: to_string(value)}) do
+      {:ok, _value} -> {:ok, value}
+      error -> error
+    end
   end
 
   def cast(%{value: value} = ctx) when is_binary(value) do

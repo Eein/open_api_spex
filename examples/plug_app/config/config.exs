@@ -1,6 +1,4 @@
-# This file is responsible for configuring your application
-# and its dependencies with the aid of the Mix.Config module.
-use Mix.Config
+import Config
 
 config :plug_app, ecto_repos: [PlugApp.Repo]
 
@@ -9,3 +7,7 @@ config :plug_app, PlugApp.Repo,
   database: "priv/repo/plug_app_#{Mix.env()}.db"
 
 config :logger, level: :debug
+
+if File.exists?(Path.join("config", "#{config_env()}.exs")) do
+  import_config "#{config_env()}.exs"
+end
